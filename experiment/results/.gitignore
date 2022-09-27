@@ -1,0 +1,3 @@
+# ignore results in experiment folder (all data is in analysis/data) 
+*
+!.gitignore
