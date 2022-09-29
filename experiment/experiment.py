@@ -1,24 +1,15 @@
 # coding=utf-8
-#import time
-#import random
 import pandas as pd
-#import sys
-#import os
-#import glob
 import csv
 import codecs
-import datetime
-#from psychopy import prefs
-#prefs.general['audioLib'] = ['pyo']
+import datetime as dt
 from psychopy import gui, core, monitors, visual, event
-#visual,event,core,gui,monitors
 from fractions import Fraction
-# import pyaudio
-# import wave
-# import cleese
-# import scipy.io.wavfile as wav
-#import numpy as np
-#from math import sqrt
+import numpy as np
+
+############################################################
+## Management of trial and result files
+#########################################################
 
 def enblock(x, n_stims):
     # generator to cut a list of stims into blocks of n_stims
@@ -70,6 +61,16 @@ def read_trials(trial_file):
         trials = list(reader)
     return trials[1::] #trim header
 
+def get_stim_info(texture_id):
+# read texture information stored in data file
+# returns diameter, opening, spacing
+
+    stim_file = "stims/data.csv"
+    stims = pd.read_csv(stim_file)
+    diameter = float(stims.loc[stims.surface_number==texture_id,'diameter'])
+    opening = float(stims.loc[stims.surface_number==texture_id,'opening'])
+    spacing = float(stims.loc[stims.surface_number==texture_id,'spacing'])
+    return diameter, opening, spacing
 
 def generate_result_file(subject_number):
 
@@ -82,82 +83,86 @@ def generate_result_file(subject_number):
         writer.writerow(result_headers)
     return result_file
 
-def show_text_and_wait(file_name = None, message = None):
+###################################################################
+## GUI
+###################################################################
+
+def show_text_and_wait(file_name = None, message = None, color = 'white'):
     event.clearEvents()
+    core.wait(0.2)
+
     if message is None:
-        with codecs.open (file_name, "r", "utf-8") as file :
+        with codecs.open (file_name, 'r', 'utf-8') as file :
+        #with open (file_name, 'r') as file :
             message = file.read()
-    text_object = visual.TextStim(win, text = message, color = 'black')
+    text_object = visual.TextStim(win, text = message, color = color)
     text_object.height = 0.05
     text_object.draw()
     win.flip()
+    
+    # wait for key
     while True :
-        if len(event.getKeys()) > 0:
+        if len(event.getKeys()) > 0: 
             core.wait(0.2)
             break
         event.clearEvents()
         core.wait(0.2)
         text_object.draw()
         win.flip()
+        
+def show_text(file_name = None, message = None, color = 'white'):
+    event.clearEvents()
+    core.wait(0.2)
 
-def update_trial_gui():
-    for response_label in response_labels: response_label.draw()
-    for response_checkbox in response_checkboxes: response_checkbox.draw()
+    if message is None:
+        with codecs.open (file_name, 'r', 'utf-8') as file :
+        #with open (file_name, 'r') as file :
+            message = file.read()
+    text_object = visual.TextStim(win, text = message, color = color)
+    text_object.height = 0.05
+    text_object.draw()
     win.flip()
 
-def get_stim_info(texture_id):
-# read texture information stored in data file
-# returns diameter, opening, spacing
+#def update_trial_gui():
+#    for response_label in response_labels: response_label.draw()
+#    for response_checkbox in response_checkboxes: response_checkbox.draw()
+#    win.flip()
 
-    stim_file = "stims/data.csv"
-    stims = pd.read_csv(stim_file)
-    diameter = float(stims.loc[stims.surface_number==texture_id,'diameter'])
-    opening = float(stims.loc[stims.surface_number==texture_id,'opening'])
-    spacing = float(stims.loc[stims.surface_number==texture_id,'spacing'])
-    return diameter, opening, spacing
 
-def get_false_feedback(min,max):
-# returns a random percentage (int) between min and max percent
-# min, max: integers between 0 and 100
-    return int(100*random.uniform(float(min)/100, float(max)/100))
 
-# get participant nr, age, sex
-subject_info = {u'Number':1, u'Age':20, u'Sex': u'f/m'}
-dlg = gui.DlgFromDict(subject_info, title=u'Reverse Correlation Tactile')
+#########################################################################
+### Run experiment
+##########################################################################
+
+# get participant nb, age, sex 
+subject_info = {u'number':1, u'age':20, u'sex': u'f/m', u'handedness':'right'}
+dlg = gui.DlgFromDict(subject_info, title=u'Tactile Reverse correlation')
 if dlg.OK:
-    subject_number = subject_info[u'Number']
-    subject_age = subject_info[u'Age']
-    subject_sex = subject_info[u'Sex']
+    subject_number = subject_info[u'number']
+    subject_age = subject_info[u'age']
+    subject_sex = subject_info[u'sex']  
+    subject_handedness = subject_info[u'handedness'] 
 else:
     core.quit() #the user hit cancel so exit
-date = datetime.datetime.now()
+date = dt.datetime.now()
 time = core.Clock()
 
-# Monitor
-widthPix = 1920 # screen width in px
-heightPix = 1080 # screen height in px
-monitorwidth = 53.1 # monitor width in cm
-viewdist = 60. # viewing distance in cm
-monitorname = 'iiyama'
-scrn = 0 # 0 to use main screen, 1 to use external screen
-mon = monitors.Monitor(monitorname, width=monitorwidth, distance=viewdist)
-mon.setSizePix((widthPix, heightPix))
-mon.saveMon()
-win = visual.Window([1366, 768], fullscr=False, color="lightgray", units='norm', monitor=mon)
-screen_ratio = (float(win.size[1])/float(win.size[0]))
+# create psychopy black window where to show instructions
+win = visual.Window(np.array([1920,1080]),fullscr=False,color='black', units='norm')
+
 
 # Response GUI
-response_options = ['[g] texture 1', '[h] texture 2']
-response_keys = ['g', 'h']
-label_size = 0.07
-response_labels = []
-reponse_ypos = -0.7
-reponse_xpos = -0.6
-label_spacing = abs(-0.8 - reponse_ypos)/(len(response_options)+1)
-for index, response_option in enumerate(response_options):
-    y = reponse_ypos - label_spacing * index
-    response_labels.append(visual.TextStim(win, units = 'norm', text=response_option, alignHoriz='left', height=label_size, color='black', pos=(reponse_xpos,y-0.2)))
-    reponse_xpos=reponse_xpos+1
+#response_options = ['[g] texture 1', '[h] texture 2']
+#response_keys = ['g', 'h']
+#label_size = 0.07
+#response_labels = []
+#reponse_ypos = -0.7
+#reponse_xpos = -0.6
+#label_spacing = abs(-0.8 - reponse_ypos)/(len(response_options)+1)
+#for index, response_option in enumerate(response_options):
+#    y = reponse_ypos - label_spacing * index
+#    response_labels.append(visual.TextStim(win, units = 'norm', text=response_option, alignHoriz='left', height=label_size, color='black', pos=(reponse_xpos,y-0.2)))
+#    reponse_xpos=reponse_xpos+1
 
 # generate data files
 result_file = generate_result_file(subject_number)
@@ -191,45 +196,64 @@ for block_count, trial_file in enumerate(trial_files):
 
     block_trials = read_trials(trial_file)
     print(block_trials)
-    for trial in block_trials :
+    for trial_count,trial in enumerate(block_trials) :
+
         stim_1 = trial[0]
         stim_2 = trial[1]
-        end_trial = False
-        while (not end_trial):
-            update_trial_gui()
-            stim_1_text = visual.TextStim(win, text = "Texture "+str(stim_1), color = 'black', pos=(-0.5,0.1))
-            stim_2_text = visual.TextStim(win, text = "Texture "+str(stim_2), color = 'black', pos=(0.5,0.1))
-            stim_1_text.draw()
-            stim_2_text.draw()
-            response_start = time.getTime()
-            update_trial_gui()
-            # upon key response...
-            response_key = event.waitKeys(keyList=response_keys)
-            response_time = time.getTime() - response_start
-            update_trial_gui()
-            # blank screen and end trial
-            core.wait(0.3)
-            win.flip()
-            core.wait(0.2)
-            end_trial = True
 
-            # log response
-            row = [subject_number, trial_count, block_count, practice_block, subject_sex, subject_age, date]
-            if response_key == ['g']:
-                response_choice = 0
-            elif response_key == ['h']:
-                response_choice = 1
+        show_text_and_wait(message = u"Block %d trial %d \n\n EN ATTENTE \n\n Positionner Texture %s - Texture %s \n\n\n Puis appuyez pour démarrer l'acquisition"%(block_count,trial_count,stim_1,stim_2), 
+        color = 'orange') 
 
-            with open(result_file, 'a') as file :
-                writer = csv.writer(file,lineterminator='\n')
-                for stim_order,stim in enumerate(trial):
-                    diameter, opening, spacing = get_stim_info(stim)
-                    print('Texture %s %f,%f,%f'%(stim,diameter, opening, spacing))
-                    result = row + [stim, stim_order, diameter, opening, spacing] \
-                                     + [response_choice==stim_order, round(response_time,3)]
-                    writer.writerow(result) #store a line for each x,y pair in the stim
+        event.clearEvents()
 
-        trial_count += 1
+        # record audio)
+        #audio_recorder.start()   
+
+        # notify recording
+        show_text(message= "RECORDING", color = 'green')
+
+        # send start_trial marker
+        #if(SEND_MARKERS):
+        #    send_marker(stim_tracker, MARKER_CODES['trial_started_%s'%condition])
+    
+        response_start = time.getTime()
+
+        # wait on event key
+        while True :
+            response_key = event.getKeys()
+
+            if len(response_key) > 0: 
+
+                if response_key == ['g']: #response 1
+                    response_choice = 0
+                elif response_key == ['h']: #response 2
+                    response_choice = 1
+                else : # any other key: stop recording
+                    # audio_recorder.stop()
+                    show_text(message = "(recording stopped)", color = 'red')
+                    event.clearEvents()
+                    continue
+            
+                response_time = time.getTime() - response_start
+                #core.wait(0.2)
+                show_text(message = "(saving response)", color = 'red')
+                break
+                
+        event.clearEvents()        
+        core.wait(0.2)
+
+        
+        # log response
+        row = [subject_number, trial_count, block_count, practice_block, subject_sex, subject_age, date]
+        with open(result_file, 'a') as file :
+            writer = csv.writer(file,lineterminator='\n')
+            for stim_order,stim in enumerate(trial):
+                diameter, opening, spacing = get_stim_info(stim)
+                print('Texture %s %f,%f,%f'%(stim,diameter, opening, spacing))
+                result = row + [stim, stim_order, diameter, opening, spacing] \
+                                 + [response_choice==stim_order, round(response_time,3)]
+                writer.writerow(result) #store a line for each x,y pair in the stim
+
         print("block"+str(block_count)+": trial"+str(trial_count) + ' (practice: '+ str(practice_block)+')')
 
     # pause at the end of subsequent blocks
