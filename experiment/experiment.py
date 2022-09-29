@@ -5,7 +5,8 @@ import codecs
 import datetime as dt
 from psychopy import gui, core, monitors, visual, event
 from fractions import Fraction
-import numpy as np
+import numpy as npggg
+import ni_reader as ni
 
 ############################################################
 ## Management of trial and result files
@@ -19,13 +20,13 @@ def enblock(x, n_stims):
         end = n_stims*(i+1)
         yield x[start:end]
 
-def generate_trial_files(subject_number=1,n_blocks=1,n_trials=100,practice=False):
-# generates n_block trial files per subject
+def generate_trial_files(subject_number=1,n_blocks=1,n_trials=100,practice=False, stim_file = "stims/data.csv"):
+# generates n_block trial files per subject, and returns an array of their file_names
 # each block contains n_trials trials
 # each trial is composed of two textures, identified by their number
 # trials are sampled from a set, described in a csv file
 # returns an array of n_block file names
-    stim_file = "stims/data.csv"
+    
     stims = pd.read_csv(stim_file)
 
     first_half = stims.sample(n=n_blocks*n_trials, replace=True) # sample a random n_trials stims for interval 1
@@ -61,11 +62,10 @@ def read_trials(trial_file):
         trials = list(reader)
     return trials[1::] #trim header
 
-def get_stim_info(texture_id):
+def get_stim_info(texture_id, stim_file = "stims/data.csv"):
 # read texture information stored in data file
 # returns diameter, opening, spacing
 
-    stim_file = "stims/data.csv"
     stims = pd.read_csv(stim_file)
     diameter = float(stims.loc[stims.surface_number==texture_id,'diameter'])
     opening = float(stims.loc[stims.surface_number==texture_id,'opening'])
@@ -76,7 +76,7 @@ def generate_result_file(subject_number):
 
     result_file = 'results/results_Subj'+str(subject_number)+'_'+date.strftime('%y%m%d_%H.%M')+'.csv'
     # results are stored one line per texture in each pair/trial, i.e. a trial is stored in 2 lines
-    result_headers = ['subj','trial','block','practice', 'sex','age','date','texture_id','stim_order','diameter','opening','spacing','response','rt']
+    result_headers = ['subj','trial','block','practice', 'sex','age','date','data_file','texture_id','stim_order','diameter','opening','spacing','response','rt']
 
     with open(result_file, 'w+') as file:
         writer = csv.writer(file)
@@ -123,12 +123,20 @@ def show_text(file_name = None, message = None, color = 'white'):
     text_object.draw()
     win.flip()
 
-#def update_trial_gui():
-#    for response_label in response_labels: response_label.draw()
-#    for response_checkbox in response_checkboxes: response_checkbox.draw()
-#    win.flip()
 
 
+########################################################################
+### EXPERIMENT PARAMETERS
+######################################################################
+
+STIM_FILE = "stims/data.csv"
+N_PRACTICE_BLOCKS = 0 
+N_PRACTICE_TRIALS = 4       # nb of trials per practice block
+N_BLOCKS = 1                # nb of trial blocks (possibly + 1, if repeat_last_block)
+REPEAT_LAST_BLOCK = True    # if true, block (n_blocks) and block (n_blocks+1) are the same 
+                            # some reverse-correlation experiments use a 'double-pass' procedure
+                            # which present the same pair of data twice, in order to compute internal noise
+N_TRIALS = 5               # per trial block
 
 #########################################################################
 ### Run experiment
@@ -147,104 +155,79 @@ else:
 date = dt.datetime.now()
 time = core.Clock()
 
+# create acquisition reader
+ni_reader=ni.NIReader('config/config_nireader_simulated.py') # à utiliser sur place
+
 # create psychopy black window where to show instructions
 win = visual.Window(np.array([1920,1080]),fullscr=False,color='black', units='norm')
 
-
-# Response GUI
-#response_options = ['[g] texture 1', '[h] texture 2']
-#response_keys = ['g', 'h']
-#label_size = 0.07
-#response_labels = []
-#reponse_ypos = -0.7
-#reponse_xpos = -0.6
-#label_spacing = abs(-0.8 - reponse_ypos)/(len(response_options)+1)
-#for index, response_option in enumerate(response_options):
-#    y = reponse_ypos - label_spacing * index
-#    response_labels.append(visual.TextStim(win, units = 'norm', text=response_option, alignHoriz='left', height=label_size, color='black', pos=(reponse_xpos,y-0.2)))
-#    reponse_xpos=reponse_xpos+1
-
 # generate data files
 result_file = generate_result_file(subject_number)
-
-# generate trial files: 1 practice block per actor, then (n_blocks + (repeat_last_block==True)?1:0) blocks of n_stims trials
-n_practice_blocks = 1 # there are as many practice blocks as there are actors
-n_practice_trials = 4 # nb of trials per practice block (i.e. per actor)
-n_blocks = 2 # nb of trial blocks (possibly + 1, if repeat_last_block)
-repeat_last_block = True # if true, block (n_blocks) and block (n_blocks+1) are the same
-n_trials = 50  # per trial block
-
-practice_file = generate_trial_files(subject_number, n_blocks=n_practice_blocks, n_trials=n_practice_trials, practice=True)
-trial_files = generate_trial_files(subject_number, n_blocks,n_trials)
-if repeat_last_block:
-    trial_files.append(trial_files[-1])
+practice_file = generate_trial_files(subject_number, 
+                                    n_blocks=N_PRACTICE_BLOCKS,
+                                    n_trials=N_PRACTICE_TRIALS,
+                                    practice=True,
+                                    stim_file = STIM_FILE)
+trial_files = generate_trial_files(subject_number, N_BLOCKS,N_TRIALS)
+if REPEAT_LAST_BLOCK:
+    trial_files.append(trial_files[-1]) # todo: these trials should be tagged as double-pass
 trial_files = practice_file + trial_files #each file is a block; first n_practice_blocks blocks are practice blocks. 
 
+# start user interaction
 show_text_and_wait(file_name="intro_1.txt")
-show_text_and_wait(file_name="practice.txt") # instructions for the n_practice_blocks first blocks of stimuli
 
+practice_block = True if N_PRACTICE_BLOCKS > 0 else False
+if practice_block: # inform participant if there are practice blocks
+    show_text_and_wait(file_name="practice.txt") 
+    
 trial_count = 0
 n_blocks = len(trial_files)
-practice_block = True
-    
 for block_count, trial_file in enumerate(trial_files):
 
-    # inform end of practice at the end of the initial practice blocks
-    if block_count == n_practice_blocks :
+    if practice_block & (block_count == N_PRACTICE_BLOCKS) :
+        # inform end of practice at the end of the initial practice blocks
         show_text_and_wait(file_name="end_practice.txt")
         practice_block = False
 
     block_trials = read_trials(trial_file)
-    print(block_trials)
+    
     for trial_count,trial in enumerate(block_trials) :
 
+        # inform to position both surfaces and wait for start of recording
         stim_1 = trial[0]
         stim_2 = trial[1]
-
         show_text_and_wait(message = u"Block %d trial %d \n\n EN ATTENTE \n\n Positionner Texture %s - Texture %s \n\n\n Puis appuyez pour démarrer l'acquisition"%(block_count,trial_count,stim_1,stim_2), 
         color = 'orange') 
-
         event.clearEvents()
 
-        # record audio)
-        #audio_recorder.start()   
-
-        # notify recording
+        # record audio
+        data_file = ni_reader.start_acquisition(subject_number,block_count,trial_count,practice_block)
         show_text(message= "RECORDING", color = 'green')
-
-        # send start_trial marker
-        #if(SEND_MARKERS):
-        #    send_marker(stim_tracker, MARKER_CODES['trial_started_%s'%condition])
-    
         response_start = time.getTime()
 
-        # wait on event key
+        # wait for end of recording, or participant response
         while True :
             response_key = event.getKeys()
-
             if len(response_key) > 0: 
-
-                if response_key == ['g']: #response 1
+                if response_key == ['g']: # response 1
                     response_choice = 0
-                elif response_key == ['h']: #response 2
+                elif response_key == ['h']: # response 2
                     response_choice = 1
                 else : # any other key: stop recording
-                    # audio_recorder.stop()
+                    ni_reader.stop_acquisition()
                     show_text(message = "(recording stopped)", color = 'red')
                     event.clearEvents()
                     continue
             
                 response_time = time.getTime() - response_start
-                #core.wait(0.2)
                 show_text(message = "(saving response)", color = 'red')
                 break
                 
         event.clearEvents()        
         core.wait(0.2)
 
-        
         # log response
-        row = [subject_number, trial_count, block_count, practice_block, subject_sex, subject_age, date]
+        row = [subject_number, trial_count, block_count, practice_block, subject_sex, subject_age, date, data_file]
         with open(result_file, 'a') as file :
             writer = csv.writer(file,lineterminator='\n')
             for stim_order,stim in enumerate(trial):
@@ -261,10 +244,6 @@ for block_count, trial_file in enumerate(trial_files):
         show_text_and_wait(message = u"Vous avez complété " \
                                 + str(Fraction(block_count-n_practice_blocks+1, n_blocks-n_practice_blocks)) \
                                 + u" de l'expérience.\n Vous pouvez faire une pause si vous le souhaitez, puis appuyer sur une touche pour continuer.")
-        #show_text("pause1.txt")
-        #core.wait(5)
-       #show_text_and_wait("pause0.txt")
-
 
 #End of experiment
 show_text_and_wait("end.txt")

@@ -7,34 +7,27 @@ from nidaqmx.stream_readers import AnalogMultiChannelReader
 from nidaqmx import constants
 import pickle
 import os
+import datetime as dt
 
 class NIReader:
-	def __init__(self,date,config_file): 
+	
+	def __init__(self,config_file): 
+
+		# read parameters from config file
 		self.parameters = {}
 		exec(open(config_file).read(),self.parameters)
 		pars=self.parameters['params']
 		self.sampling_freq_in = pars['sampling_freq_in']  # in Hz
 		self.buffer_in_size = pars['buffer_in_size'] # samples
-		self.chans_in = pars['chans_in']  
+		self.chans_in = pars['chans_in'] 
+		self.chans_id = pars['chans_id'] 
 		self.running = pars['running']
-		self.date = date
 		self.dev = pars['dev']
+		
 		self.participant = 'unknown'
 
-	def set_participant(self, participant): 
-		self.participant = participant
+	def reading_task_callback(self,task_idx, event_type, num_samples, callback_data):  
 
-	def get_participant(self): 
-		return self.participant
-
-	def set_config_order(self,config):
-		self.config = config
-
-	def get_config_order(self):
-		return self.config
-
-	def reading_task_callback(self,task_idx, event_type, num_samples, callback_data):  # bufsize_callback is passed to num_samples
-		
 		if self.running:
 			
 			# get buffer data
@@ -42,7 +35,8 @@ class NIReader:
 			self.stream_in.read_many_sample(buffer_in,
 								 num_samples, 
 								 timeout=constants.WAIT_INFINITELY)
-			buffer_time = self.current_time + self.buffer_in_size*self.callback_counter*1000/self.sampling_freq_in # start time of the ith buffer, in ms
+
+			buffer_time = self.start_time + self.buffer_in_size*self.callback_counter*1000/self.sampling_freq_in # start time of the ith buffer, in ms
 				
 			# write in file
 			with open(self.result_file, 'a') as file :
@@ -52,23 +46,23 @@ class NIReader:
 					result = [buffer_time + time_in_buffer] # time stamp of current sample
 					for channel_buffer in buffer_in: 
 						result += [channel_buffer[n_sample]] # each channel of the current sample
-					writer.writerow(result + [self.participant,self.config,self.order,self.condition_name+'_'+str(self.repeat)])
+					writer.writerow(result + [self.participant,self.block,self.trial,self.practice])
 
 			self.callback_counter+=1
 
 		return 0  
 
-	def start_acquisition(self,start_time,participant,file,order):
+	def start_acquisition(self,subject_number,block_number,trial_number,practice):
 		
-		# Configure and setup the tasks
-		self.set_participant(participant)
-		self.file = file
-		parameters = {}
-		exec(open(file).read(),parameters)
-		pars=parameters['params']
-		self.condition_name = pars['condition_name']
-		self.repeat = pars['n_repeats']
-		self.order = order
+		date = dt.datetime.now()
+
+		# store acquisition metadata 
+		self.participant = subject_number
+		self.block = block_number
+		self.trial = trial_number
+		self.practice = practice
+
+		# set up the task
 		self.task_in = nidaqmx.Task()
 		self.task_in.ai_channels.add_ai_voltage_chan(self.dev)  # has to match with chans_in
 		self.task_in.timing.cfg_samp_clk_timing(rate=self.sampling_freq_in, 
@@ -78,17 +72,25 @@ class NIReader:
 		self.task_in.register_every_n_samples_acquired_into_buffer_event(self.buffer_in_size,
 																 self.reading_task_callback)
 
-		self.result_file="data/treadmill_participant_"+self.participant+"_order_"+str(self.order)+'_'+str(self.date)+"_data.csv"
+		# create result file name
+		self.result_file = 'results/data_subj' + str(self.participant) \
+							+ '_block' +str(self.block) \
+							+ '_trial' +str(self.trial) \
+							+ ('_PRACTICE' if self.practice else '') \
+							+ '_' + date.strftime('%y%m%d_%H.%M')+'.csv'
 		with open(self.result_file, 'a') as file :
 				writer = csv.writer(file,lineterminator='\n')
-				header = ['time','x_left','y_left','z_left','x_right','y_right','z_right','participant','config_file','order','condition_name']
+				header = ['time'] + self.chans_id + ['participant','block','trial','practice']
 				writer.writerow(header)
 
+		# start acquisition
 		print("Acquisition starting")
 		self.running = True
-		self.current_time=time.time()-start_time
+		self.start_time=time.time()
 		self.callback_counter = 0
 		self.task_in.start()
+
+		return self.result_file
 
 	def stop_acquisition(self):
 		self.running = False
