@@ -31,7 +31,13 @@ def generate_trial_files(subject_number=1,n_blocks=1,n_trials=100,practice=False
 
     first_half = stims.sample(n=n_blocks*n_trials, replace=True) # sample a random n_trials stims for interval 1
     second_half = stims.sample(n=n_blocks*n_trials,replace=True) # sample a random n_trials stims for interval 2
-    # trials consist of two random files, one from the first half, and one from the second half of the stimulus list
+
+    for index,(stim1,stim2) in enumerate(zip(first_half.surface_number, second_half.surface_number)):
+    # check for pairs composed of identical stims, and replace stim2 by random other
+        if stim1 == stim2: 
+            new_stim2 = stims[stims.surface_number!=stim2].sample(n=1).reset_index().loc[0,'surface_number']
+            second_half.loc[index,'surface_number'] = new_stim2
+
     # write trials by blocks of n_trials
     block_count = 0 
     trial_files = []
