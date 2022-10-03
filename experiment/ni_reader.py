@@ -39,7 +39,7 @@ class NIReader:
 			# was: buffer_time = self.start_time + ...
 			buffer_time = self.buffer_in_size*self.callback_counter*1000/self.sampling_freq_in # start time of the ith buffer, in ms
 			
-			print('new buffer %d (%d) -> %s'%(self.callback_counter,buffer_time,self.result_file))
+			print('- buffer %d (t=%d ms) -> %s'%(self.callback_counter,buffer_time,self.result_file))
 			
 			# write in file
 			if self.result_file: # if result_file is positionned to not None
