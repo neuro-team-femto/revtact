@@ -5,7 +5,7 @@ import codecs
 import datetime as dt
 from psychopy import gui, core, monitors, visual, event
 from fractions import Fraction
-import numpy as npggg
+import numpy as np
 import ni_reader as ni
 
 ############################################################
@@ -133,7 +133,7 @@ STIM_FILE = "stims/data.csv"
 N_PRACTICE_BLOCKS = 0 
 N_PRACTICE_TRIALS = 4       # nb of trials per practice block
 N_BLOCKS = 1                # nb of trial blocks (possibly + 1, if repeat_last_block)
-REPEAT_LAST_BLOCK = True    # if true, block (n_blocks) and block (n_blocks+1) are the same 
+REPEAT_LAST_BLOCK = False    # if true, block (n_blocks) and block (n_blocks+1) are the same 
                             # some reverse-correlation experiments use a 'double-pass' procedure
                             # which present the same pair of data twice, in order to compute internal noise
 N_TRIALS = 5               # per trial block
@@ -156,7 +156,9 @@ date = dt.datetime.now()
 time = core.Clock()
 
 # create acquisition reader
-ni_reader=ni.NIReader('config/config_nireader_simulated.py') # à utiliser sur place
+ni_reader=ni.NIReader('config/config_nireader_simulated.py') 
+# start acquisition
+ni_reader.start_acquisition(subject_number)
 
 # create psychopy black window where to show instructions
 win = visual.Window(np.array([1920,1080]),fullscr=False,color='black', units='norm')
@@ -175,6 +177,8 @@ trial_files = practice_file + trial_files #each file is a block; first n_practic
 
 # start user interaction
 show_text_and_wait(file_name="intro_1.txt")
+
+
 
 practice_block = True if N_PRACTICE_BLOCKS > 0 else False
 if practice_block: # inform participant if there are practice blocks
@@ -200,9 +204,19 @@ for block_count, trial_file in enumerate(trial_files):
         color = 'orange') 
         event.clearEvents()
 
-        # record audio
-        data_file = ni_reader.start_acquisition(subject_number,block_count,trial_count,practice_block)
-        show_text(message= "RECORDING", color = 'green')
+        # log data in new result_file
+        trial_data_file = 'results/data_subj' + str(subject_number) \
+                           + '_block' +str(block_count) \
+                           + '_trial' +str(trial_count) \
+                               + ('_PRACTICE' if practice_block else '') \
+                           + '_' + date.strftime('%y%m%d_%H.%M')+'.csv'
+        ni_reader.new_result_file(trial_data_file,\
+                                    block=block_count,
+                                    trial = trial_count,
+                                    practice=practice_block)
+
+        show_text(message= u"RECORDING \n\n Appuyer sur ESPACE pour stopper l'enregistrement,\n\n ou appuyer sur g/h pour enregistrer la réponse.", color = 'green')
+        # Rappeler en attente de réponse: space ou g/h
         response_start = time.getTime()
 
         # wait for end of recording, or participant response
@@ -214,20 +228,21 @@ for block_count, trial_file in enumerate(trial_files):
                 elif response_key == ['h']: # response 2
                     response_choice = 1
                 else : # any other key: stop recording
-                    ni_reader.stop_acquisition()
-                    show_text(message = "(recording stopped)", color = 'red')
+                    ni_reader.new_result_file(None)
+                    show_text(message = "(enregistrement terminé) \n\n Appuyer sur g/h pour enregistrer la réponse.", color = 'red')
+                    # rappeler en attente de réponse g/h
                     event.clearEvents()
                     continue
             
                 response_time = time.getTime() - response_start
-                show_text(message = "(saving response)", color = 'red')
+                show_text(message = "(réponse sauvée)", color = 'red')
                 break
                 
         event.clearEvents()        
         core.wait(0.2)
 
         # log response
-        row = [subject_number, trial_count, block_count, practice_block, subject_sex, subject_age, date, data_file]
+        row = [subject_number, trial_count, block_count, practice_block, subject_sex, subject_age, date, trial_data_file]
         with open(result_file, 'a') as file :
             writer = csv.writer(file,lineterminator='\n')
             for stim_order,stim in enumerate(trial):
@@ -240,15 +255,17 @@ for block_count, trial_file in enumerate(trial_files):
         print("block"+str(block_count)+": trial"+str(trial_count) + ' (practice: '+ str(practice_block)+')')
 
     # pause at the end of subsequent blocks
-    if ((block_count >= n_practice_blocks) and (block_count < n_blocks-1)):
+    if ((block_count >= N_PRACTICE_BLOCKS) and (block_count < n_blocks-1)):
         show_text_and_wait(message = u"Vous avez complété " \
-                                + str(Fraction(block_count-n_practice_blocks+1, n_blocks-n_practice_blocks)) \
+                                + str(Fraction(block_count-N_PRACTICE_BLOCKS+1, n_blocks-N_PRACTICE_BLOCKS)) \
                                 + u" de l'expérience.\n Vous pouvez faire une pause si vous le souhaitez, puis appuyer sur une touche pour continuer.")
 
+
 #End of experiment
+ni_reader.stop_acquisition()
+
 show_text_and_wait("end.txt")
 
-# Close Python
 win.close()
 core.quit()
 sys.exit()

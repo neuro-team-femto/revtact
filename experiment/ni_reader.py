@@ -1,13 +1,11 @@
 import numpy as np
 import time
 import csv
-from datetime import datetime
 import nidaqmx
 from nidaqmx.stream_readers import AnalogMultiChannelReader
 from nidaqmx import constants
 import pickle
 import os
-import datetime as dt
 
 class NIReader:
 	
@@ -15,7 +13,9 @@ class NIReader:
 
 		# read parameters from config file
 		self.parameters = {}
-		exec(open(config_file).read(),self.parameters)
+		with open(config_file) as file :
+			exec(file.read(),self.parameters)
+
 		pars=self.parameters['params']
 		self.sampling_freq_in = pars['sampling_freq_in']  # in Hz
 		self.buffer_in_size = pars['buffer_in_size'] # samples
@@ -36,32 +36,31 @@ class NIReader:
 								 num_samples, 
 								 timeout=constants.WAIT_INFINITELY)
 
-			buffer_time = self.start_time + self.buffer_in_size*self.callback_counter*1000/self.sampling_freq_in # start time of the ith buffer, in ms
-				
+			# was: buffer_time = self.start_time + ...
+			buffer_time = self.buffer_in_size*self.callback_counter*1000/self.sampling_freq_in # start time of the ith buffer, in ms
+			
+			print('new buffer %d (%d) -> %s'%(self.callback_counter,buffer_time,self.result_file))
+			
 			# write in file
-			with open(self.result_file, 'a') as file :
-				writer = csv.writer(file,lineterminator='\n')
-				for n_sample in range(num_samples):
-					time_in_buffer = n_sample*1000/self.sampling_freq_in # time offset of the n_sample sample in current buffer
-					result = [buffer_time + time_in_buffer] # time stamp of current sample
-					for channel_buffer in buffer_in: 
-						result += [channel_buffer[n_sample]] # each channel of the current sample
-					writer.writerow(result + [self.participant,self.block,self.trial,self.practice])
+			if self.result_file: # if result_file is positionned to not None
+				with open(self.result_file, 'a') as file :
+					writer = csv.writer(file,lineterminator='\n')
+					for n_sample in range(num_samples):
+						time_in_buffer = n_sample*1000/self.sampling_freq_in # time offset of the n_sample sample in current buffer
+						result = [buffer_time + time_in_buffer] # time stamp of current sample
+						for channel_buffer in buffer_in: 
+							result += [channel_buffer[n_sample]] # each channel of the current sample
+						writer.writerow(result + [self.participant,self.block,self.trial,self.practice])
 
 			self.callback_counter+=1
 
 		return 0  
 
-	def start_acquisition(self,subject_number,block_number,trial_number,practice):
+	def start_acquisition(self,subject_number):
 		
-		date = dt.datetime.now()
-
 		# store acquisition metadata 
 		self.participant = subject_number
-		self.block = block_number
-		self.trial = trial_number
-		self.practice = practice
-
+		
 		# set up the task
 		self.task_in = nidaqmx.Task()
 		self.task_in.ai_channels.add_ai_voltage_chan(self.dev)  # has to match with chans_in
@@ -71,18 +70,11 @@ class NIReader:
 		self.stream_in = AnalogMultiChannelReader(self.task_in.in_stream)
 		self.task_in.register_every_n_samples_acquired_into_buffer_event(self.buffer_in_size,
 																 self.reading_task_callback)
+		print(self.task_in)
 
-		# create result file name
-		self.result_file = 'results/data_subj' + str(self.participant) \
-							+ '_block' +str(self.block) \
-							+ '_trial' +str(self.trial) \
-							+ ('_PRACTICE' if self.practice else '') \
-							+ '_' + date.strftime('%y%m%d_%H.%M')+'.csv'
-		with open(self.result_file, 'a') as file :
-				writer = csv.writer(file,lineterminator='\n')
-				header = ['time'] + self.chans_id + ['participant','block','trial','practice']
-				writer.writerow(header)
-
+		# do not log results on startup (wait for new result_file)
+		self.result_file = None
+		
 		# start acquisition
 		print("Acquisition starting")
 		self.running = True
@@ -90,7 +82,22 @@ class NIReader:
 		self.callback_counter = 0
 		self.task_in.start()
 
-		return self.result_file
+	def new_result_file(self, result_file, block=-1,trial=-1,practice=-1): 
+		# switch file where data is recorded
+		
+		self.result_file = result_file
+
+		if (self.result_file):
+			
+			self.block = block
+			self.trial = trial
+			self.practice = practice
+		
+			with open(self.result_file, 'a') as file :
+				writer = csv.writer(file,lineterminator='\n')
+				header = ['time'] + self.chans_id + ['participant','block','trial','practice']
+				writer.writerow(header)
+
 
 	def stop_acquisition(self):
 		self.running = False
