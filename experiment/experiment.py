@@ -36,9 +36,8 @@ def generate_trial_files(subject_number=1,n_blocks=1,n_trials=100,practice=False
     block_count = 0 
     trial_files = []
     for block_stims in enblock(list(zip(first_half.surface_number, second_half.surface_number)),n_trials):
-        trial_file = 'trials/trials_subj' + str(subject_number) + '_' \
-                                          + ('PRACTICE' if practice else str(block_count))\
-                                          + '_' + date.strftime('%y%m%d_%H.%M')+'.csv'
+        trial_file = 'trials/'+date.strftime('%y%m%d_%H.%M')+'_trials_subj' + str(subject_number) + '_' \
+                                          + ('PRACTICE' if practice else str(block_count))+'.csv'
         print ("generate trial file "+trial_file)
         trial_files.append(trial_file)
         with open(trial_file, 'w+', newline='') as file :
@@ -74,7 +73,7 @@ def get_stim_info(texture_id, stim_file = "stims/data.csv"):
 
 def generate_result_file(subject_number):
 
-    result_file = 'results/results_Subj'+str(subject_number)+'_'+date.strftime('%y%m%d_%H.%M')+'.csv'
+    result_file = 'results/'+date.strftime('%y%m%d_%H.%M')+'_results_subj'+str(subject_number)+'.csv'
     # results are stored one line per texture in each pair/trial, i.e. a trial is stored in 2 lines
     result_headers = ['subj','trial','block','practice', 'sex','age','date','data_file','texture_id','stim_order','diameter','opening','spacing','response','rt']
 
@@ -197,6 +196,8 @@ for block_count, trial_file in enumerate(trial_files):
     
     for trial_count,trial in enumerate(block_trials) :
 
+        print("block"+str(block_count)+": trial"+str(trial_count) + ' (practice: '+ str(practice_block)+')')
+
         # inform to position both surfaces and wait for start of recording
         stim_1 = trial[0]
         stim_2 = trial[1]
@@ -205,11 +206,10 @@ for block_count, trial_file in enumerate(trial_files):
         event.clearEvents()
 
         # log data in new result_file
-        trial_data_file = 'results/data_subj' + str(subject_number) \
+        trial_data_file = 'results/'+ date.strftime('%y%m%d_%H.%M')+'_data_subj' + str(subject_number) \
                            + '_block' +str(block_count) \
                            + '_trial' +str(trial_count) \
-                               + ('_PRACTICE' if practice_block else '') \
-                           + '_' + date.strftime('%y%m%d_%H.%M')+'.csv'
+                               + ('_PRACTICE' if practice_block else '') +'.csv'
         ni_reader.new_result_file(trial_data_file,\
                                     block=block_count,
                                     trial = trial_count,
@@ -252,8 +252,7 @@ for block_count, trial_file in enumerate(trial_files):
                                  + [response_choice==stim_order, round(response_time,3)]
                 writer.writerow(result) #store a line for each x,y pair in the stim
 
-        print("block"+str(block_count)+": trial"+str(trial_count) + ' (practice: '+ str(practice_block)+')')
-
+        
     # pause at the end of subsequent blocks
     if ((block_count >= N_PRACTICE_BLOCKS) and (block_count < n_blocks-1)):
         show_text_and_wait(message = u"Vous avez complété " \
