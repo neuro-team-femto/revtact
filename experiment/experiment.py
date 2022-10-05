@@ -8,6 +8,23 @@ from fractions import Fraction
 import numpy as np
 import ni_reader as ni
 
+########################################################################
+### EXPERIMENT PARAMETERS
+######################################################################
+
+STIM_FILE = "stims/data.csv"
+N_PRACTICE_BLOCKS = 0 
+N_PRACTICE_TRIALS = 4       # nb of trials per practice block
+N_BLOCKS = 1                # nb of trial blocks (possibly + 1, if repeat_last_block)
+REPEAT_LAST_BLOCK = False   # if true, block (n_blocks) and block (n_blocks+1) are the same 
+                            # some reverse-correlation experiments use a 'double-pass' procedure
+                            # which present the same pair of data twice, in order to compute internal noise
+N_TRIALS = 5                # per trial block
+
+RECORD_FROM_CARD = False    # True to communicate with ni card
+
+
+
 ############################################################
 ## Management of trial and result files
 #########################################################
@@ -130,18 +147,8 @@ def show_text(file_name = None, message = None, color = 'white'):
 
 
 
-########################################################################
-### EXPERIMENT PARAMETERS
-######################################################################
 
-STIM_FILE = "stims/data.csv"
-N_PRACTICE_BLOCKS = 0 
-N_PRACTICE_TRIALS = 4       # nb of trials per practice block
-N_BLOCKS = 1                # nb of trial blocks (possibly + 1, if repeat_last_block)
-REPEAT_LAST_BLOCK = False    # if true, block (n_blocks) and block (n_blocks+1) are the same 
-                            # some reverse-correlation experiments use a 'double-pass' procedure
-                            # which present the same pair of data twice, in order to compute internal noise
-N_TRIALS = 5               # per trial block
+
 
 #########################################################################
 ### Run experiment
@@ -160,10 +167,11 @@ else:
 date = dt.datetime.now()
 time = core.Clock()
 
-# create acquisition reader
-ni_reader=ni.NIReader('config/config_nireader_simulated.py') 
-# start acquisition
-ni_reader.start_acquisition(subject_number)
+if RECORD_FROM_CARD: 
+    # create acquisition reader
+    ni_reader=ni.NIReader('config/config_nireader_simulated.py') 
+    # start acquisition
+    ni_reader.start_acquisition(subject_number)
 
 # create psychopy black window where to show instructions
 win = visual.Window(np.array([1920,1080]),fullscr=False,color='black', units='norm')
@@ -182,8 +190,6 @@ trial_files = practice_file + trial_files #each file is a block; first n_practic
 
 # start user interaction
 show_text_and_wait(file_name="intro_1.txt")
-
-
 
 practice_block = True if N_PRACTICE_BLOCKS > 0 else False
 if practice_block: # inform participant if there are practice blocks
@@ -211,12 +217,13 @@ for block_count, trial_file in enumerate(trial_files):
         color = 'orange') 
         event.clearEvents()
 
-        # log data in new result_file
         trial_data_file = 'results/'+ date.strftime('%y%m%d_%H.%M')+'_data_subj' + str(subject_number) \
                            + '_block' +str(block_count) \
                            + '_trial' +str(trial_count) \
                                + ('_PRACTICE' if practice_block else '') +'.csv'
-        ni_reader.new_result_file(trial_data_file,\
+        if RECORD_FROM_CARD:
+            # log data in new result_file
+            ni_reader.new_result_file(trial_data_file,\
                                     block=block_count,
                                     trial = trial_count,
                                     practice=practice_block)
@@ -234,7 +241,8 @@ for block_count, trial_file in enumerate(trial_files):
                 elif response_key == ['h']: # response 2
                     response_choice = 1
                 else : # any other key: stop recording
-                    ni_reader.new_result_file(None)
+                    if RECORD_FROM_CARD:
+                        ni_reader.new_result_file(None)
                     show_text(message = "(enregistrement terminé) \n\n Appuyer sur g/h pour enregistrer la réponse.", color = 'red')
                     # rappeler en attente de réponse g/h
                     event.clearEvents()
@@ -267,7 +275,8 @@ for block_count, trial_file in enumerate(trial_files):
 
 
 #End of experiment
-ni_reader.stop_acquisition()
+if RECORD_FROM_CARD:
+    ni_reader.stop_acquisition()
 
 show_text_and_wait("end.txt")
 
