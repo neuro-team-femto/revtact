@@ -63,7 +63,9 @@ class NIReader:
 		
 		# set up the task
 		self.task_in = nidaqmx.Task()
-		self.task_in.ai_channels.add_ai_voltage_chan(self.dev)  # has to match with chans_in
+		self.task_in.ai_channels.add_ai_voltage_chan(self.dev,
+													min_val=-10.0,
+													max_val=10.0)  # has to match with chans_in
 		self.task_in.timing.cfg_samp_clk_timing(rate=self.sampling_freq_in, 
 									   sample_mode=constants.AcquisitionType.CONTINUOUS,
 									   samps_per_chan=self.buffer_in_size)

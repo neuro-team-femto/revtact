@@ -3,7 +3,7 @@ import pandas as pd
 import csv
 import codecs
 import datetime as dt
-from psychopy import gui, core, monitors, visual, event
+from psychopy import gui, core, visual, event
 from fractions import Fraction
 import numpy as np
 import ni_reader as ni
@@ -21,7 +21,7 @@ REPEAT_LAST_BLOCK = False   # if true, block (n_blocks) and block (n_blocks+1) a
                             # which present the same pair of data twice, in order to compute internal noise
 N_TRIALS = 5                # per trial block
 
-RECORD_FROM_CARD = False    # True to communicate with ni card
+RECORD_FROM_CARD = True    # True to communicate with ni card
 
 
 
@@ -169,7 +169,7 @@ time = core.Clock()
 
 if RECORD_FROM_CARD: 
     # create acquisition reader
-    ni_reader=ni.NIReader('config/config_nireader_simulated.py') 
+    ni_reader=ni.NIReader('config/config_nireader_real.py') 
     # start acquisition
     ni_reader.start_acquisition(subject_number)
 
