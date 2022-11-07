@@ -12,17 +12,15 @@ import ni_reader as ni
 ### EXPERIMENT PARAMETERS
 ######################################################################
 
-STIM_FILE = "stims/data.csv"
-N_PRACTICE_BLOCKS = 0 
-N_PRACTICE_TRIALS = 4       # nb of trials per practice block
-N_BLOCKS = 1                # nb of trial blocks (possibly + 1, if repeat_last_block)
-REPEAT_LAST_BLOCK = False   # if true, block (n_blocks) and block (n_blocks+1) are the same 
+STIM_FILE = "stims/data_short.csv"
+N_PRACTICE_BLOCKS = 1 #1
+N_PRACTICE_TRIALS = 5 #1       # nb of trials per practice block
+N_BLOCKS = 3 #1               # nb of trial blocks (possibly + 1, if repeat_last_block)
+REPEAT_LAST_BLOCK = True # False  # if true, block (n_blocks) and block (n_blocks+1) are the same 
                             # some reverse-correlation experiments use a 'double-pass' procedure
                             # which present the same pair of data twice, in order to compute internal noise
-N_TRIALS = 5                # per trial block
-
-RECORD_FROM_CARD = True    # True to communicate with ni card
-
+N_TRIALS = 25 # 3               # per trial block
+RECORD_FROM_CARD = True # False   # True to communicate with ni card
 
 
 ############################################################
@@ -84,7 +82,7 @@ def read_trials(trial_file):
         trials = list(reader)
     return trials[1::] #trim header
 
-def get_stim_info(texture_id, stim_file = "stims/data.csv"):
+def get_stim_info(texture_id, stim_file = "stims/data_short.csv"):
 # read texture information stored in data file
 # returns diameter, opening, spacing
 
@@ -183,13 +181,19 @@ practice_file = generate_trial_files(subject_number,
                                     n_trials=N_PRACTICE_TRIALS,
                                     practice=True,
                                     stim_file = STIM_FILE)
-trial_files = generate_trial_files(subject_number, N_BLOCKS,N_TRIALS)
+trial_files = generate_trial_files(subject_number,
+                                    n_blocks=N_BLOCKS,
+                                    n_trials=N_TRIALS,
+                                    practice=False,
+                                    stim_file = STIM_FILE)
 if REPEAT_LAST_BLOCK:
     trial_files.append(trial_files[-1]) # todo: these trials should be tagged as double-pass
 trial_files = practice_file + trial_files #each file is a block; first n_practice_blocks blocks are practice blocks. 
 
 # start user interaction
 show_text_and_wait(file_name="intro_1.txt")
+show_text_and_wait(file_name="intro_2.txt")
+
 
 practice_block = True if N_PRACTICE_BLOCKS > 0 else False
 if practice_block: # inform participant if there are practice blocks
@@ -213,7 +217,8 @@ for block_count, trial_file in enumerate(trial_files):
         # inform to position both surfaces and wait for start of recording
         stim_1 = trial[0]
         stim_2 = trial[1]
-        show_text_and_wait(message = u"Block %d trial %d \n\n EN ATTENTE \n\n Positionner Texture %s - Texture %s \n\n\n Puis appuyez pour démarrer l'acquisition"%(block_count,trial_count,stim_1,stim_2), 
+        show_text_and_wait(message = u"Block %d trial %d \n\n EN ATTENTE \n\n Positionner Texture %s - Texture %s \n\n\n"%(block_count,trial_count,stim_1,stim_2) +
+        "Faire reset sur l'amplificateur (bouton rouge)\n\n\n Puis appuyez pour démarrer l'acquisition", 
         color = 'orange') 
         event.clearEvents()
 
@@ -236,18 +241,22 @@ for block_count, trial_file in enumerate(trial_files):
         while True :
             response_key = event.getKeys()
             if len(response_key) > 0: 
-                if response_key == ['g']: # response 1
-                    response_choice = 0
-                elif response_key == ['h']: # response 2
-                    response_choice = 1
-                else : # any other key: stop recording
-                    if RECORD_FROM_CARD:
-                        ni_reader.new_result_file(None)
+
+                # any key (incl. g/h): stop recording
+                if RECORD_FROM_CARD:
+                    ni_reader.new_result_file(None)
                     show_text(message = "(enregistrement terminé) \n\n Appuyer sur g/h pour enregistrer la réponse.", color = 'red')
                     # rappeler en attente de réponse g/h
                     event.clearEvents()
                     continue
-            
+                
+                if response_key == ['g']: # response 1
+                    response_choice = 0
+                elif response_key == ['h']: # response 2
+                    response_choice = 1
+                else : # continue waiting for response
+                    continue
+                                
                 response_time = time.getTime() - response_start
                 show_text(message = "(réponse sauvée)", color = 'red')
                 break
@@ -260,7 +269,8 @@ for block_count, trial_file in enumerate(trial_files):
         with open(result_file, 'a') as file :
             writer = csv.writer(file,lineterminator='\n')
             for stim_order,stim in enumerate(trial):
-                diameter, opening, spacing = get_stim_info(stim)
+                diameter, opening, spacing = get_stim_info(texture_id = stim, 
+                                                            stim_file = STIM_FILE)
                 print('Texture %s %f,%f,%f'%(stim,diameter, opening, spacing))
                 result = row + [stim, stim_order, diameter, opening, spacing] \
                                  + [response_choice==stim_order, round(response_time,3)]

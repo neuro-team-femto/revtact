@@ -1,7 +1,7 @@
 Dans cette experience, nous allons vous présenter des paires de surfaces, que vous pourrez toucher. 
 
-Dans chaque paire de surface, nous vous demanderons de sélectionner laquelle vous semble la plus rugueuse. Vous répondrez "la première" ou "la deuxième" à l'oral à l'expérimentateur, qui tapera votre réponse avec les touches "g" et "h" du clavier, la touche de gauche ("g") étant utilisée si vous trouvez que la surface de gauche est la plus rugueuse des deux, et la touche de droite ("h") si vous trouvez que la surface de droite est la plus rugueuse des deux. 
+Dans chaque paire de surfaces, nous vous demanderons de sélectionner laquelle vous semble la plus rugueuse. Vous répondrez "la première" ou "la deuxième" à l'oral à l'expérimentateur, qui tapera votre réponse avec les touches "g" et "h" du clavier, la touche de gauche ("g") étant utilisée si vous trouvez que la surface de gauche est la plus rugueuse des deux, et la touche de droite ("h") si vous trouvez que la surface de droite est la plus rugueuse des deux. 
 
-Par "rugueux", nous entendons... (définition)
+Par "rugueux", nous entendons le caractère d'une surface qui présente des aspérités, des irrégularités et qui est rude au toucher. Par exemple, l'écorce rugueuse d'un arbre, ou une peau rugueuse.
 
 (Appuyez sur une touche pour continuer)
